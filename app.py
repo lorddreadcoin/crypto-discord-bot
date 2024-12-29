@@ -15,7 +15,7 @@ CMC_API_KEY = os.getenv('CMC_API_KEY', 'a2ad9fd9-4f3d-43c7-8ad4-8efdc64c8673')
 CMC_BASE_URL = "https://pro-api.coinmarketcap.com/v1"
 
 # Discord Public Key (from your Discord Application)
-DISCORD_PUBLIC_KEY = "6118424de54e617b9e7995e7c7439409f7ece7e644d3e6cf2cc7ef9c3cba9d98c1"
+DISCORD_PUBLIC_KEY = "6118424de54e617b9e7995e7c7439409"  # Update this with just the first part of your public key
 
 @app.route('/')
 def home():
