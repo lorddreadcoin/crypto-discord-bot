@@ -2,8 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 from dotenv import load_dotenv
-from nacl.signing import VerifyKey
-from nacl.exceptions import BadSignatureError
+from discord_interactions import verify_key, InteractionType, InteractionResponseType
 import json
 
 app = Flask(__name__)
@@ -22,48 +21,34 @@ DISCORD_PUBLIC_KEY = "6118424de56e617b9e795e9c74394097ece7e64d3e6cf2cc7ef9c3cba9
 def home():
     return "Crypto Discord Bot is running!"
 
-def verify_signature(raw_body, signature: str, timestamp: str) -> bool:
-    try:
-        verify_key = VerifyKey(bytes.fromhex(DISCORD_PUBLIC_KEY))
-        verify_key.verify(f"{timestamp}{raw_body}".encode(), bytes.fromhex(signature))
-        return True
-    except Exception as e:
-        print(f"Verification error: {str(e)}")
+def verify_discord_request():
+    signature = request.headers.get('X-Signature-Ed25519')
+    timestamp = request.headers.get('X-Signature-Timestamp')
+    
+    if not signature or not timestamp:
         return False
+        
+    body = request.data
+    
+    return verify_key(body, signature, timestamp, DISCORD_PUBLIC_KEY)
 
 @app.route('/api/interactions', methods=['POST'])
 def handle_interaction():
-    if not request.is_json:
-        print("Request is not JSON")
-        return 'Bad request', 400
+    # Verify request
+    if not verify_discord_request():
+        return 'Invalid request signature', 401
 
-    # Get the signature and timestamp
-    signature = request.headers.get('X-Signature-Ed25519')
-    timestamp = request.headers.get('X-Signature-Timestamp')
-
-    if not signature or not timestamp:
-        print("Missing signature or timestamp")
-        return 'Bad request', 401
-
-    raw_body = request.get_data().decode('utf-8')
-
-    # Verify the request
-    if not verify_signature(raw_body, signature, timestamp):
-        print("Invalid signature")
-        return 'Invalid signature', 401
-
-    # Handle the interaction
+    # Parse the request data
     interaction = request.json
-    interaction_type = interaction.get('type')
-
-    # Handle PING
-    if interaction_type == 1:
+    
+    # Handle PING (type 1)
+    if interaction.get('type') == InteractionType.PING:
         return jsonify({
-            "type": 1
+            "type": InteractionResponseType.PONG
         })
-
-    # Handle APPLICATION_COMMAND
-    if interaction_type == 2:
+    
+    # Handle Slash Command (type 2)
+    if interaction.get('type') == InteractionType.APPLICATION_COMMAND:
         command_name = interaction.get('data', {}).get('name')
         
         if command_name == 'crypto':
@@ -88,7 +73,7 @@ def handle_interaction():
                     message = "Failed to fetch cryptocurrency data"
                 
                 return jsonify({
-                    "type": 4,
+                    "type": InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                     "data": {
                         "content": message
                     }
@@ -96,7 +81,7 @@ def handle_interaction():
                 
             except Exception as e:
                 return jsonify({
-                    "type": 4,
+                    "type": InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                     "data": {
                         "content": f"Error: {str(e)}"
                     }
