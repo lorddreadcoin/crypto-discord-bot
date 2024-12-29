@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 from dotenv import load_dotenv
-from discord_interactions import verify_key_decorator
+import nacl.signing
 import json
 
 app = Flask(__name__)
@@ -14,21 +14,34 @@ load_dotenv()
 CMC_API_KEY = os.getenv('CMC_API_KEY', 'a2ad9fd9-4f3d-43c7-8ad4-8efdc64c8673')
 CMC_BASE_URL = "https://pro-api.coinmarketcap.com/v1"
 
-# Discord Public Key (from your Discord Application)
-DISCORD_PUBLIC_KEY = "6118424de54e617b9e7995e7c7439409"  # Update this with just the first part of your public key
+# Discord Public Key
+PUBLIC_KEY = "6118424de54e617b9e7995e7c7439409"
+verify_key = nacl.signing.VerifyKey(bytes.fromhex(PUBLIC_KEY))
 
 @app.route('/')
 def home():
     return "Crypto Discord Bot is running!"
 
 @app.route('/api/interactions', methods=['POST'])
-@verify_key_decorator(DISCORD_PUBLIC_KEY)
 def handle_interaction():
-    if request.json.get('type') == 1:  # Discord PING
+    # Verify the request
+    signature = request.headers.get('X-Signature-Ed25519')
+    timestamp = request.headers.get('X-Signature-Timestamp')
+    body = request.data.decode('utf-8')
+    
+    try:
+        verify_key.verify(f'{timestamp}{body}'.encode(), bytes.fromhex(signature))
+    except Exception as e:
+        return 'Invalid request signature', 401
+
+    # Handle the interaction
+    interaction = request.json
+    
+    if interaction.get('type') == 1:  # PING
         return jsonify({"type": 1})
     
-    if request.json.get('type') == 2:  # Application Command
-        command_name = request.json.get('data', {}).get('name')
+    if interaction.get('type') == 2:  # APPLICATION_COMMAND
+        command_name = interaction.get('data', {}).get('name')
         
         if command_name == 'crypto':
             try:
