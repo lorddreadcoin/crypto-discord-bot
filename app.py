@@ -9,16 +9,20 @@ app = Flask(__name__)
 load_dotenv()
 
 # Your CoinMarketCap API key
-CMC_API_KEY = "a2ad9fd9-4f3d-43c7-8ad4-8efdc64c8673"
+CMC_API_KEY = os.getenv('CMC_API_KEY', 'a2ad9fd9-4f3d-43c7-8ad4-8efdc64c8673')
 CMC_BASE_URL = "https://pro-api.coinmarketcap.com/v1"
+
+@app.route('/')
+def home():
+    return "Crypto Discord Bot is running!"
 
 @app.route('/api/interactions', methods=['POST'])
 def handle_interaction():
-    if request.json['type'] == 1:  # Discord PING
+    if request.json.get('type') == 1:  # Discord PING
         return jsonify({"type": 1})
     
-    if request.json['type'] == 2:  # Application Command
-        command_name = request.json['data']['name']
+    if request.json.get('type') == 2:  # Application Command
+        command_name = request.json.get('data', {}).get('name')
         
         if command_name == 'crypto':
             try:
@@ -33,10 +37,11 @@ def handle_interaction():
                 
                 if response.status_code == 200:
                     data = response.json()['data']
-                    message = "Top 10 Cryptocurrencies:\n"
+                    message = "**Top 10 Cryptocurrencies:**\n"
                     for crypto in data:
                         price = crypto['quote']['USD']['price']
-                        message += f"{crypto['name']} ({crypto['symbol']}): ${price:.2f}\n"
+                        change_24h = crypto['quote']['USD']['percent_change_24h']
+                        message += f"**{crypto['name']}** ({crypto['symbol']}): ${price:.2f} | 24h: {change_24h:.2f}%\n"
                 else:
                     message = "Failed to fetch cryptocurrency data"
                 
@@ -58,4 +63,4 @@ def handle_interaction():
     return jsonify({"error": "Unknown command"})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
